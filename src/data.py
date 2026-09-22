@@ -1,6 +1,7 @@
 """Descarga de precios históricos con yfinance para un único activo."""
 
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -16,6 +17,12 @@ from config.strategy import PERIOD, TICKER
 _CUSTOM_CA_BUNDLE = Path(__file__).resolve().parent.parent / ".certs" / "cacert.pem"
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+
+# Los precios son una serie diaria: una caché de semanas de antigüedad puede
+# servir sin avisar un rango de fechas que ya no llega a "hoy". Se considera
+# fresca durante un día; pasado ese tiempo se intenta descargar de nuevo y solo
+# se recurre a la caché vieja si la descarga falla (p. ej. yfinance caído).
+CACHE_MAX_AGE = timedelta(days=1)
 
 
 def _build_session():
@@ -34,16 +41,30 @@ def download_prices(ticker: str = TICKER, period: str = PERIOD) -> pd.Series:
 
 
 def load_or_download_prices(ticker: str = TICKER, period: str = PERIOD) -> pd.Series:
-    """Usa la caché en data/prices.csv si existe; si no, descarga y la guarda."""
+    """Usa la caché en data/prices.csv si es reciente (< CACHE_MAX_AGE); si no,
+    descarga datos frescos y solo recurre a la caché vieja si la descarga falla.
+    """
     DATA_DIR.mkdir(exist_ok=True)
     cache_path = DATA_DIR / "prices.csv"
 
-    if cache_path.exists():
+    cache_is_fresh = (
+        cache_path.exists()
+        and datetime.now() - datetime.fromtimestamp(cache_path.stat().st_mtime) < CACHE_MAX_AGE
+    )
+    if cache_is_fresh:
         cached = pd.read_csv(cache_path, index_col=0, parse_dates=True)
         if ticker in cached.columns:
             return cached[ticker].dropna()
 
-    prices = download_prices(ticker, period=period)
+    try:
+        prices = download_prices(ticker, period=period)
+    except Exception:
+        if cache_path.exists():
+            cached = pd.read_csv(cache_path, index_col=0, parse_dates=True)
+            if ticker in cached.columns:
+                return cached[ticker].dropna()
+        raise
+
     prices.to_frame(name=ticker).to_csv(cache_path)
     return prices
 
