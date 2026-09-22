@@ -6,6 +6,7 @@ re-validar una paleta nueva y da continuidad visual entre proyectos del portfoli
 """
 
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -214,6 +215,8 @@ def build_dashboard(
     date_start = result.index.min().strftime("%b %Y")
     date_end = result.index.max().strftime("%b %Y")
 
+    run_timestamp = datetime.now().strftime("%d/%m/%Y %H:%M")
+
     page = f"""<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -301,7 +304,7 @@ def build_dashboard(
   <div class="hero-inner">
     <h1>Momentum Backtest — Cruce de Medias Móviles</h1>
     <p>Estrategia SMA {SMA_SHORT}/{SMA_LONG} sobre {TICKER_NAME}, simulada a mano y comparada contra buy &amp; hold.</p>
-    <div class="meta">{date_start} — {date_end} · datos diarios vía yfinance</div>
+    <div class="meta">{date_start} — {date_end} · datos diarios vía yfinance · Última ejecución: {run_timestamp}</div>
   </div>
 </div>
 
